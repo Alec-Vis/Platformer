@@ -17,6 +17,7 @@ display = pygame.Surface((300, 200))
 ''' load assets '''
 # Background
 bg_image = pygame.image.load(r'.\Assets\backgrounds\background3-720.png')
+bg_image = pygame.transform.scale(bg_image, (300, 200))
 # Player
 player_image = pygame.image.load(r'.\Assets\player-small.png')
 # set transparent color key: otherwise the player image will have a white border when on top of another surface
@@ -29,28 +30,20 @@ dirt_image = pygame.image.load(r'.\Assets\tiles\dirt-01.png')
 
 tile_size = dirt_image.get_width()
 
-# Map
-# game_map = np.zeros(shape=(90,160)) # generate RowxCol by dividing dims of bg_img with pixel sz of tiles
-# game_map[45] = 2
-# game_map[46:] = 1
-# game_map_terrain = np.zeros(shape=(20, 160)) + 3
-# game_map[24:44] = game_map_terrain
 
-game_map = [
-    ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'],
-    ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'],
-    ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'],
-    ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'],
-    ['0', '0', '0', '0', '0', '2', '2', '2', '2', '2', '2', '0', '0', '0', '0', '0', '0', '0', '0'],
-    ['0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0'],
-    ['2', '2', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '2', '2'],
-    ['1', '1', '2', '2', '2', '2', '2', '2', '2', '2', '2', '2', '2', '2', '2', '2', '2', '1', '1'],
-    ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
-    ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
-    ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
-    ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
-    ['1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1', '1'],
-]
+# Map
+def load_map(path):
+    f = open(path + '.txt', 'r')
+    data = f.read()
+    f.close()
+    data = data.split('\n')
+    game_map = []
+    for row in data:
+        game_map.append(list(row))
+    return game_map
+
+
+game_map = load_map(r'Assets\map')
 
 """Physics"""
 
@@ -102,25 +95,58 @@ jump = False
 
 player_y_momentum = 0
 air_timer = 0
+true_scroll = [0, 0]
 
 # player rect for collisions
 player_rect = pygame.Rect(50, 50, player_image.get_width(), player_image.get_height())
 test_rect = pygame.Rect(100, 100, 100, 50)
 
+# [[scale, [x_position, y_position, width, height]], ... ]
+background_objects = [[0.25, [120, 10, 70, 400]], [0.25, [280, 30, 40, 400]], [0.5, [30, 40, 40, 400]],
+                      [0.5, [130, 90, 100, 400]], [0.75, [300, 80, 120, 400]]]
+
 ''' game loop '''
 while True:
     display.blit(bg_image, (0, 0))
 
+    # the content in the () locates the camera on the player
+    # Dividing this by 20 creates the camera lag effect
+    # this occurs because in () is the difference between the player location and the camera location
+    # therefore dividing this amount will
+
+    # Additionally a copy of the scroll value is made and applied on the tiles movement to be integer values
+    #  the reason for this is because if decimals are used there is an effect where the tiles will slide into each other
+    true_scroll[0] += (player_rect.x - true_scroll[0] - 153) / 20
+    true_scroll[1] += (player_rect.y - true_scroll[1] - 106) / 20
+    scroll = true_scroll.copy()
+    scroll[0] = int(scroll[0])
+    scroll[1] = int(scroll[1])
+
     # game map rendering
+    pygame.draw.rect(display, (13, 13, 20), pygame.Rect(0, 120, 300, 80))
+    for background_object in background_objects:
+        # first two arguments are the position and move the
+        obj_rect = pygame.Rect(background_object[1][0] - scroll[0]*background_object[0],
+                             background_object[1][1] - scroll[1] * background_object[0],
+                             background_object[1][2],
+                             background_object[1][3]
+                             )
+        if background_object[0] == 0.5:
+            pygame.draw.rect(display, (50, 88, 168), obj_rect)
+        elif background_object[0] == 0.75:
+            pygame.draw.rect(display, (52, 51, 94), obj_rect)
+        else:
+            pygame.draw.rect(display, (50, 119, 168), obj_rect)
+
     tile_rect = []
     y = 0
     for row in game_map:
         x = 0
         for tile in row:
             if tile == '1':
-                display.blit(dirt_image, (x * tile_size, y * tile_size))
+                display.blit(dirt_image, (x * tile_size - scroll[0], y * tile_size - scroll[1]))
             if tile == '2':
-                display.blit(ice_image, (x * tile_size, y * tile_size))
+                display.blit(ice_image, (x * tile_size - scroll[0], y * tile_size - scroll[1]))
             if tile != '0':
                 tile_rect.append(pygame.Rect(x * tile_size, y * tile_size, tile_size, tile_size))
             x += 1
@@ -152,7 +178,7 @@ while True:
         player_y_momentum = 0
 
     # player image
-    display.blit(player_image, (player_rect.x, player_rect.y))
+    display.blit(player_image, (player_rect.x - scroll[0], player_rect.y - scroll[1]))
 
     # Player inputs
     for event in pygame.event.get():
